@@ -301,26 +301,25 @@ if ($endpoint === "run" && $method === "GET") {
         ");
 
         $stmt->execute([$levelId, $pubk]);
-        $rows = $stmt->fetchAll();
+        $row = $stmt->fetch();
 
-        $leaderboard = array_map(function ($row) {
-            return [
+        if (!$row) {
+            sendJson(404, ["status" => "error", "message" => "run not found"]);
+        }
+
+        sendJson(200, [
+            "status" => "ok",
+            "entry" => [
                 "player_name" => $row["username"],
                 "pubk" => $row["public_key"],
                 "ticks" => (int) $row["ticks"],
                 "replay" => $row["replay_json"]
-            ];
-        }, $rows);
-
-        sendJson(200, [
-            "status" => "ok",
-            "leaderboard" => $leaderboard
+            ]
         ]);
-        
     } catch (Exception $e) {
         sendJson(500, [
             "status" => "error",
-            "message" => "get run failed",
+            "message" => "Run query failed",
             "details" => $e->getMessage()
         ]);
     }
