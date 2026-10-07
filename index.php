@@ -280,6 +280,53 @@ if ($endpoint === "upload_run" && $method === "POST") {
 }
 
 // ----------------------
+// /run/{levelId}/{pubk}
+// ----------------------
+if ($endpoint === "run" && $method === "GET") {
+    $levelId = $parts[1] ?? null;
+    $pubk = $parts[2] ?? null;
+
+    if (!$levelId || !$pubk) {
+        sendJson(400, ["status" => "error", "message" => "Missing levelId or pubk"]);
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT r.ticks, r.public_key, r.replay_json, u.username
+            FROM runs r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.level_id = ? AND r.public_key = ?
+            ORDER BY r.ticks ASC, r.id ASC
+            LIMIT 1
+        ");
+
+        $stmt->execute([$levelId, $pubk]);
+        $rows = $stmt->fetchAll();
+
+        $leaderboard = array_map(function ($row) {
+            return [
+                "player_name" => $row["username"],
+                "pubk" => $row["public_key"],
+                "ticks" => (int) $row["ticks"],
+                "replay" => $row["replay_json"]
+            ];
+        }, $rows);
+
+        sendJson(200, [
+            "status" => "ok",
+            "leaderboard" => $leaderboard
+        ]);
+        
+    } catch (Exception $e) {
+        sendJson(500, [
+            "status" => "error",
+            "message" => "get run failed",
+            "details" => $e->getMessage()
+        ]);
+    }
+}
+
+// ----------------------
 // /leaderboard/{levelId}
 // ----------------------
 if ($endpoint === "leaderboard" && $method === "GET") {
@@ -291,7 +338,7 @@ if ($endpoint === "leaderboard" && $method === "GET") {
 
     try {
         $stmt = $pdo->prepare("
-            SELECT r.ticks, r.public_key, u.username
+            SELECT r.ticks, r.public_key, r.replay_json, u.username
             FROM runs r
             JOIN users u ON r.user_id = u.id
             WHERE r.level_id = ?
@@ -306,7 +353,8 @@ if ($endpoint === "leaderboard" && $method === "GET") {
             return [
                 "player_name" => $row["username"],
                 "pubk" => $row["public_key"],
-                "ticks" => (int) $row["ticks"]
+                "ticks" => (int) $row["ticks"],
+                "replay" => $row["replay_json"]
             ];
         }, $rows);
 
