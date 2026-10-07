@@ -121,7 +121,19 @@ if ($endpoint === "upload_level" && $method === "POST") {
 
         $tilesJson = json_encode($level["data"] ?? []);
 
-                $stmt = $pdo->prepare("
+        $stmt = $pdo->prepare("SELECT id FROM levels WHERE pubk = ? AND tiles_json = ?");
+        $stmt->execute([$pubk, $tilesJson]);
+        $existingId = $stmt->fetchColumn();
+
+        if ($existingId !== false) {
+            sendJson(200, [
+                "status" => "ignored",
+                "message" => "You already uploaded this level",
+                "level_id" => $existingId
+            ]);
+        }
+
+        $stmt = $pdo->prepare("
             INSERT INTO levels (name, creator, pubk, width, height, tiles_json)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
