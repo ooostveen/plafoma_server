@@ -292,7 +292,7 @@ if ($endpoint === "run" && $method === "GET") {
 
     try {
         $stmt = $pdo->prepare("
-            SELECT r.ticks, r.public_key, r.replay_json, u.username
+            SELECT r.id, r.ticks, r.public_key, r.replay_json, u.username
             FROM runs r
             JOIN users u ON r.user_id = u.id
             WHERE r.level_id = ? AND r.public_key = ?
@@ -307,13 +307,23 @@ if ($endpoint === "run" && $method === "GET") {
             sendJson(404, ["status" => "error", "message" => "run not found"]);
         }
 
+        // count runs ahead of this one, using the same tie-break as the leaderboard
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM runs
+            WHERE level_id = ?
+            AND (ticks < ? OR (ticks = ? AND id < ?))
+        ");
+        $stmt->execute([$levelId, $row["ticks"], $row["ticks"], $row["id"]]);
+        $placement = (int) $stmt->fetchColumn() + 1;
+
         sendJson(200, [
             "status" => "ok",
             "entry" => [
                 "player_name" => $row["username"],
                 "pubk" => $row["public_key"],
                 "ticks" => (int) $row["ticks"],
-                "replay" => $row["replay_json"]
+                "replay" => $row["replay_json"],
+                "placement" => $placement
             ]
         ]);
     } catch (Exception $e) {
@@ -348,14 +358,17 @@ if ($endpoint === "leaderboard" && $method === "GET") {
         $stmt->execute([$levelId]);
         $rows = $stmt->fetchAll();
 
-        $leaderboard = array_map(function ($row) {
-            return [
+        $leaderboard = [];
+
+        foreach ($rows as $i => $row) {
+            $leaderboard[] = [
                 "player_name" => $row["username"],
                 "pubk" => $row["public_key"],
                 "ticks" => (int) $row["ticks"],
-                "replay" => $row["replay_json"]
+                "replay" => $row["replay_json"],
+                "placement" => $i + 1
             ];
-        }, $rows);
+        }
 
         sendJson(200, [
             "status" => "ok",
